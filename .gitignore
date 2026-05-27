@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Build
+build/
+dist/
+*.spec
+
+# Logs
+*.log
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# XMLs gerados
+XML/
+
+# Ambiente virtual
+venv/
+.env/
+
+# VSCode
+.vscode/
+
+# PyCharm
+.idea/
