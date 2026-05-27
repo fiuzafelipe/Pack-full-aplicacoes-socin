@@ -1,0 +1,11 @@
+Backend
+
+pip install requests beautifulsoup4 lxml pillow
+
+Frontend
+
+pip install customtkinter
+
+EXE
+
+pip install pyinstaller
