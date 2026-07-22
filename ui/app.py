@@ -27,7 +27,7 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         
-        self.VERSAO_PROGRAMA = "v1.0.2"
+        self.VERSAO_PROGRAMA = "v1.0.3"
         self.title(f"Fiuza Technology - Pack Full Aplicação Socin ({self.VERSAO_PROGRAMA})")
         
         # Ícone da janela principal
