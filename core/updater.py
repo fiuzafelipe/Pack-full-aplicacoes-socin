@@ -65,17 +65,29 @@ def exibir_popup_atualizacao(app, versao_atual, versao_recente, zip_url):
     lbl.pack(pady=25)
 
     def iniciar_update():
+        import sys, os, ctypes
+        
         # Tenta encontrar o updater.exe na pasta instalada
         pasta_base = os.path.dirname(sys.executable)
-        updater_exe = os.path.join(pasta_base, "updater.exe")
+        updater_exe = os.path.abspath(os.path.join(pasta_base, "updater.exe"))
         
+        # Truque: Se você estiver testando direto da pasta 'dist', o updater fica na 'dist_updater'
+        if not os.path.exists(updater_exe):
+            updater_exe = os.path.abspath(os.path.join(pasta_base, "..", "dist_updater", "updater.exe"))
+
         if os.path.exists(updater_exe):
-            # Aciona o atualizador enviando o link de download e fecha o app
-            subprocess.Popen([updater_exe, zip_url])
-            app.destroy()
-            sys.exit(0)
+            try:
+                # O "runas" avisa o Windows que precisamos da tela de Permissão de Administrador (UAC)
+                ctypes.windll.shell32.ShellExecuteW(None, "runas", updater_exe, zip_url, None, 1)
+                
+                # Se o comando acima deu certo, fecha o app principal
+                app.destroy()
+                sys.exit(0)
+            except Exception as e:
+                app.log(f"[Erro] Falha ao acionar permissão de administrador: {e}")
+                popup.destroy()
         else:
-            app.log("[Erro] updater.exe não encontrado! Instale a versão via instalador (.exe).")
+            app.log("[Erro] O arquivo updater.exe não foi encontrado! Verifique a sua instalação.")
             popup.destroy()
 
     frame_btns = ctk.CTkFrame(popup, fg_color="transparent")
