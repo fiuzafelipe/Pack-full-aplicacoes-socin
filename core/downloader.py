@@ -6,22 +6,30 @@ from core.parser import mudar_diretorio
 
 BASE_URL = "http://aplicacoes.socin.com.br"
 
-def baixar_arquivos(versao, path, log_callback=print, progress_callback=None):
+def baixar_arquivos(versao, path, log_callback=print, progress_callback=None, cancel_callback=None, apenas_arquivo=None):
     session = get_authenticated_session()
     
     if not session:
         log_callback("Erro: Falha na autenticação. Download cancelado.")
-        return
+        return False
 
     arquivos = gerar_arquivos(versao, path)
+    
+    if apenas_arquivo:
+        arquivos = [item for item in arquivos if item["arquivo"] == apenas_arquivo]
+
     pasta_temp = f"temp/{versao}_{path}"
     
-    # LIMPEZA: Remove resquícios de arquivos de testes anteriores
-    if os.path.exists(pasta_temp):
+    if not apenas_arquivo and os.path.exists(pasta_temp):
         shutil.rmtree(pasta_temp)
     os.makedirs(pasta_temp, exist_ok=True)
 
     for item in arquivos:
+        # Verifica se o usuário cancelou antes mesmo de iniciar o próximo arquivo
+        if cancel_callback and cancel_callback():
+            log_callback("Operação abortada pelo usuário.")
+            return False
+
         subpasta = item["pasta"]
         arquivo = item["arquivo"]
 
@@ -41,16 +49,22 @@ def baixar_arquivos(versao, path, log_callback=print, progress_callback=None):
         try:
             response = session.get(download_url, stream=True, timeout=30)
             
-            # Grava no disco SOMENTE se o servidor retornar 200 (OK)
             if response.status_code == 200:
                 tamanho_total = int(response.headers.get('content-length', 0))
                 total_mb = tamanho_total / (1024 * 1024)
                 tamanho_baixado = 0
                 
                 caminho_arquivo = os.path.join(pasta_temp, arquivo)
+                download_concluido = True # Flag interna para controle de integridade
                 
                 with open(caminho_arquivo, "wb") as f:
                     for chunk in response.iter_content(chunk_size=8192):
+                        
+                        # CHECAGEM DE CANCELAMENTO EM TEMPO REAL
+                        if cancel_callback and cancel_callback():
+                            download_concluido = False
+                            break
+                            
                         if chunk:
                             f.write(chunk)
                             tamanho_baixado += len(chunk)
@@ -61,6 +75,13 @@ def baixar_arquivos(versao, path, log_callback=print, progress_callback=None):
                                 texto_stats = f"{int(percentual_float * 100)}% - {baixado_mb:.1f} MB de {total_mb:.1f} MB"
                                 progress_callback(percentual_float, texto_stats, arquivo)
                 
+                # Se o loop parou por causa do botão cancelar...
+                if not download_concluido:
+                    if os.path.exists(caminho_arquivo):
+                        os.remove(caminho_arquivo) # Deleta o pedaço incompleto do disco
+                    log_callback(f"Download de {arquivo} interrompido e excluído.")
+                    return False
+                
                 log_callback("Sucesso!")
             else:
                 log_callback(f"Aviso: {arquivo} não existe no servidor para esta versão (Status {response.status_code})")
@@ -68,4 +89,5 @@ def baixar_arquivos(versao, path, log_callback=print, progress_callback=None):
         except Exception as e:
             log_callback(f"Falha de conexão com {arquivo}: {e}")
 
-    log_callback("Todos os downloads foram finalizados!")
+    log_callback("Todos os downloads solicitados foram finalizados!")
+    return True # Indica que tudo correu até o fim sem cancelamentos
