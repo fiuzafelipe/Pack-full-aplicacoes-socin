@@ -1,5 +1,6 @@
 import threading
 import os
+import sys
 import customtkinter as ctk
 from PIL import Image, ImageEnhance
 
@@ -9,6 +10,17 @@ from core.parser import get_versions, get_paths
 from core.file_builder import gerar_arquivos
 from core.theme import carregar_tema, salvar_tema
 from core.updater import checar_atualizacao
+
+# ==========================================
+# FUNÇÃO PARA LOCALIZAR ARQUIVOS NO PYINSTALLER
+# ==========================================
+def obter_caminho(caminho_relativo):
+    """ Retorna o caminho absoluto para o recurso, compatível com PyInstaller """
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, caminho_relativo)
 
 class App(ctk.CTk):
 
@@ -76,7 +88,7 @@ class App(ctk.CTk):
     def _aplicar_icone(self, janela):
         """Aplica um delay de 250ms para garantir que o Windows não resete o ícone"""
         try:
-            caminho_ico = os.path.abspath("assets/icon.ico")
+            caminho_ico = obter_caminho("assets/icon.ico")
             if os.path.exists(caminho_ico):
                 # O "after" aguarda o Windows terminar de desenhar a janela antes de injetar o .ico
                 janela.after(250, lambda: janela.iconbitmap(caminho_ico))
@@ -90,7 +102,7 @@ class App(ctk.CTk):
         )
         self.btn_config.place(x=670, y=10)
 
-        img_path = "assets/logo.png"
+        img_path = obter_caminho("assets/logo.png")
         img_original = Image.open(img_path)
         img_brilhante = ImageEnhance.Brightness(img_original).enhance(1.6)
 
@@ -272,10 +284,22 @@ class App(ctk.CTk):
         self.after(0, lambda: self._inserir_log(mensagem))
 
     def _inserir_log(self, mensagem):
+        # 1. Libera a caixa temporariamente para o sistema poder escrever
+        self.logs.configure(state="normal")
+        
+        # 2. Verifica a posição da barra ANTES de inserir o texto. 
+        # Margem de 0.90 (90%) é bem mais fluida e não trava a rolagem.
         posicao = self.logs.yview()
-        is_at_bottom = True if not posicao else (posicao[1] >= 0.98)
+        ta_no_fundo = True if not posicao else (posicao[1] >= 0.90)
+        
+        # 3. Insere a nova mensagem na última linha
         self.logs.insert("end", f"{mensagem}\n")
-        if is_at_bottom:
+        
+        # 4. Bloqueia a caixa (modo leitura) para evitar que o clique do usuário trave a tela
+        self.logs.configure(state="disabled")
+        
+        # 5. Se o usuário estava olhando o final do texto, desce a tela automaticamente
+        if ta_no_fundo:
             self.logs.see("end")
 
     def atualizar_progresso(self, valor_float, texto_stats, nome_arquivo):
@@ -307,7 +331,7 @@ class App(ctk.CTk):
         paleta = self.cores_destaque[self.combo_cor.get()]
 
         try:
-            img_logo_path = "assets/logotipo.png"
+            img_logo_path = obter_caminho("assets/logotipo.png")
             self.img_logotipo_modal = ctk.CTkImage(light_image=Image.open(img_logo_path), size=(180, 50))
             lbl_img_logo = ctk.CTkLabel(modal_cfg, image=self.img_logotipo_modal, text="")
             lbl_img_logo.pack(pady=(20, 5))
