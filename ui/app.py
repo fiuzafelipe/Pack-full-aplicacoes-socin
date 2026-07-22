@@ -80,7 +80,7 @@ class App(ctk.CTk):
         self.aplicar_tema_inicial()
 
         if self.auto_update:
-            threading.Thread(target=lambda: checar_atualizacao(self.log)).start()
+            threading.Thread(target=lambda: checar_atualizacao(self.VERSAO_PROGRAMA, self.log, self)).start()
 
     # ==========================================
     # CORREÇÃO DEFINITIVA DO ÍCONE
