@@ -9,6 +9,12 @@ build/
 dist/
 *.spec
 
+# Temp
+temp/
+
+# Output
+output/
+
 # Logs
 *.log
 
