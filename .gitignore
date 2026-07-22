@@ -15,6 +15,9 @@ temp/
 # Output
 output/
 
+# Iss
+*.iss
+
 # Logs
 *.log
 
