@@ -6,7 +6,6 @@ import customtkinter as ctk
 
 def checar_atualizacao(versao_atual, log_callback, app_instance):
     """Verifica a última release lançada no seu GitHub"""
-    # Mudança AQUI: Buscamos a lista completa de releases, não apenas a "latest"
     url_api = "https://api.github.com/repos/fiuzafelipe/Pack-full-aplicacoes-socin/releases"
     
     try:
@@ -22,8 +21,13 @@ def checar_atualizacao(versao_atual, log_callback, app_instance):
             release_mais_recente = dados[0]
             versao_recente = release_mais_recente.get("tag_name", "")
             
-            # Se a versão for diferente, ativa a atualização
-            if versao_recente and versao_recente != versao_atual:
+            # Normaliza as versões removendo a letra "v" (maiúscula ou minúscula) e os espaços.
+            # Assim, "1.0.3" e "v1.0.3" se tornam exatamente iguais: "1.0.3"
+            v_recente_num = versao_recente.lower().replace("v", "").strip()
+            v_atual_num = versao_atual.lower().replace("v", "").strip()
+            
+            # Compara apenas os números
+            if v_recente_num and v_recente_num != v_atual_num:
                 log_callback(f"[GitHub] Nova versão detectada: {versao_recente}!")
                 
                 # Procura o link do arquivo update.zip
