@@ -6,13 +6,21 @@ import customtkinter as ctk
 
 def checar_atualizacao(versao_atual, log_callback, app_instance):
     """Verifica a última release lançada no seu GitHub"""
-    url_api = "https://api.github.com/repos/fiuzafelipe/Pack-full-aplicacoes-socin/releases/latest"
+    # Mudança AQUI: Buscamos a lista completa de releases, não apenas a "latest"
+    url_api = "https://api.github.com/repos/fiuzafelipe/Pack-full-aplicacoes-socin/releases"
     
     try:
         response = requests.get(url_api, timeout=5)
         if response.status_code == 200:
             dados = response.json()
-            versao_recente = dados.get("tag_name", "")
+            
+            if not dados:
+                log_callback("[GitHub] Nenhuma release encontrada na lista.")
+                return
+
+            # Pega a primeira release da lista (a mais recente, seja ela pre-release ou não)
+            release_mais_recente = dados[0]
+            versao_recente = release_mais_recente.get("tag_name", "")
             
             # Se a versão for diferente, ativa a atualização
             if versao_recente and versao_recente != versao_atual:
@@ -20,7 +28,7 @@ def checar_atualizacao(versao_atual, log_callback, app_instance):
                 
                 # Procura o link do arquivo update.zip
                 zip_url = None
-                for asset in dados.get("assets", []):
+                for asset in release_mais_recente.get("assets", []):
                     if asset["name"] == "update.zip":
                         zip_url = asset["browser_download_url"]
                         break
@@ -34,11 +42,12 @@ def checar_atualizacao(versao_atual, log_callback, app_instance):
                 log_callback("[GitHub] Seu sistema já está na versão mais recente.")
                 
         else:
-            log_callback(f"[GitHub] Nenhuma release encontrada (Status {response.status_code}).")
+            log_callback(f"[GitHub] Falha ao consultar API (Status {response.status_code}).")
             
     except Exception as e:
         log_callback(f"[GitHub] Aviso: Falha ao checar atualizações ({e}).")
 
+# (A função exibir_popup_atualizacao continua exatamente igual a anterior)
 def exibir_popup_atualizacao(app, versao_atual, versao_recente, zip_url):
     popup = ctk.CTkToplevel(app)
     popup.title("Atualização Disponível")

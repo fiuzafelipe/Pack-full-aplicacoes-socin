@@ -9,6 +9,9 @@ build/
 dist/
 *.spec
 
+# Releases
+releases/
+
 # Temp
 temp/
 
@@ -17,6 +20,9 @@ output/
 
 # Iss
 *.iss
+
+# Bat
+*.bat
 
 # Logs
 *.log
