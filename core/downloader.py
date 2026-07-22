@@ -1,31 +1,39 @@
 import os
-import shutil
 from core.auth import get_authenticated_session
 from core.file_builder import gerar_arquivos
 from core.parser import mudar_diretorio
 
 BASE_URL = "http://aplicacoes.socin.com.br"
 
-def baixar_arquivos(versao, path, log_callback=print, progress_callback=None, cancel_callback=None, apenas_arquivo=None):
+def baixar_arquivos(versao, path, log_callback=print, progress_callback=None, cancel_callback=None, apenas_arquivo=None, modo=None, incluir_restaurante=False, bits=None):
     session = get_authenticated_session()
     
     if not session:
         log_callback("Erro: Falha na autenticação. Download cancelado.")
         return False
 
-    arquivos = gerar_arquivos(versao, path)
+    arquivos = gerar_arquivos(versao, path, incluir_restaurante, bits)
     
-    if apenas_arquivo:
-        arquivos = [item for item in arquivos if item["arquivo"] == apenas_arquivo]
+    # Filtros baseados no modo selecionado
+    if modo == "atualizadores":
+        arquivos = [a for a in arquivos if a["arquivo"].startswith("CONC_V_RLS") or a["arquivo"].startswith("PDV_V_RLS") or a["arquivo"].startswith("V_RLS")]
+    elif apenas_arquivo:
+        arquivos = [a for a in arquivos if a["arquivo"] == apenas_arquivo]
+    elif modo == "completo" and not incluir_restaurante:
+        # Se for pacote completo e o usuário disse NÃO para o restaurante, remove ele da fila de download
+        arquivos = [a for a in arquivos if "installRES" not in a["arquivo"]]
 
-    pasta_temp = f"temp/{versao}_{path}"
-    
-    if not apenas_arquivo and os.path.exists(pasta_temp):
-        shutil.rmtree(pasta_temp)
+    # Ajuste de caminho dinâmico para as pastas especiais
+    if versao in ["instaladores", "sistema_operacional"]:
+        pasta_temp = f"temp/{versao}"
+        diretorio_base = f"/aplicativos/{versao}"
+    else:
+        pasta_temp = f"temp/{versao}_{path}"
+        diretorio_base = f"/aplicativos/{versao}/{path}"
+        
     os.makedirs(pasta_temp, exist_ok=True)
 
     for item in arquivos:
-        # Verifica se o usuário cancelou antes mesmo de iniciar o próximo arquivo
         if cancel_callback and cancel_callback():
             log_callback("Operação abortada pelo usuário.")
             return False
@@ -33,7 +41,7 @@ def baixar_arquivos(versao, path, log_callback=print, progress_callback=None, ca
         subpasta = item["pasta"]
         arquivo = item["arquivo"]
 
-        diretorio_alvo = f"/aplicativos/{versao}/{path}"
+        diretorio_alvo = diretorio_base
         if subpasta:
             diretorio_alvo += f"/{subpasta}"
             
@@ -55,12 +63,10 @@ def baixar_arquivos(versao, path, log_callback=print, progress_callback=None, ca
                 tamanho_baixado = 0
                 
                 caminho_arquivo = os.path.join(pasta_temp, arquivo)
-                download_concluido = True # Flag interna para controle de integridade
+                download_concluido = True 
                 
                 with open(caminho_arquivo, "wb") as f:
                     for chunk in response.iter_content(chunk_size=8192):
-                        
-                        # CHECAGEM DE CANCELAMENTO EM TEMPO REAL
                         if cancel_callback and cancel_callback():
                             download_concluido = False
                             break
@@ -75,19 +81,18 @@ def baixar_arquivos(versao, path, log_callback=print, progress_callback=None, ca
                                 texto_stats = f"{int(percentual_float * 100)}% - {baixado_mb:.1f} MB de {total_mb:.1f} MB"
                                 progress_callback(percentual_float, texto_stats, arquivo)
                 
-                # Se o loop parou por causa do botão cancelar...
                 if not download_concluido:
                     if os.path.exists(caminho_arquivo):
-                        os.remove(caminho_arquivo) # Deleta o pedaço incompleto do disco
-                    log_callback(f"Download de {arquivo} interrompido e excluído.")
+                        os.remove(caminho_arquivo)
+                    log_callback(f"Download de {arquivo} cancelado.")
                     return False
                 
                 log_callback("Sucesso!")
             else:
-                log_callback(f"Aviso: {arquivo} não existe no servidor para esta versão (Status {response.status_code})")
+                log_callback(f"Aviso: {arquivo} não existe no servidor (Status {response.status_code})")
                 
         except Exception as e:
             log_callback(f"Falha de conexão com {arquivo}: {e}")
 
     log_callback("Todos os downloads solicitados foram finalizados!")
-    return True # Indica que tudo correu até o fim sem cancelamentos
+    return True

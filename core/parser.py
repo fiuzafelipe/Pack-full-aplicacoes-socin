@@ -32,29 +32,40 @@ def listar_diretorios(session):
         return diretorios
         
     except ET.ParseError:
-        # Se cair aqui, a sessão pode ter expirado e o site retornou HTML em vez de XML
         print("Erro: O servidor não retornou um XML válido.")
         return []
 
 def get_versions():
-    # 1. Pega a sessão autenticada
     session = get_authenticated_session()
     if not session:
         return []
 
-    # 2. Usa a MESMA sessão para navegar e listar
     mudar_diretorio(session, "/aplicativos")
-    return listar_diretorios(session)
+    pastas_brutas = listar_diretorios(session)
+    
+    # ==========================================
+    # FILTRAGEM INTELIGENTE DE PASTAS
+    # ==========================================
+    versoes_filtradas = []
+    for pasta in pastas_brutas:
+        pasta = pasta.strip()
+        # Mantém apenas se começar com número (versões ex: 15, 16) 
+        # OU se for exatamente uma das pastas especiais solicitadas
+        if pasta and (pasta[0].isdigit() or pasta in ["instaladores", "sistema_operacional"]):
+            versoes_filtradas.append(pasta)
+            
+    return versoes_filtradas
 
 def get_paths(versao):
-    # 1. Pega a sessão autenticada
     session = get_authenticated_session()
     if not session:
         return ["Selecione"]
 
-    # 2. Usa a MESMA sessão para navegar e listar
+    # Se selecionou uma das pastas especiais, não existem sub-paths numéricos
+    if versao in ["instaladores", "sistema_operacional"]:
+        return ["Não se aplica"]
+
     mudar_diretorio(session, f"/aplicativos/{versao}")
     paths = listar_diretorios(session)
     
-    # Retorna os paths, ou a opção padrão caso venha vazio
     return paths if paths else ["Selecione"]
