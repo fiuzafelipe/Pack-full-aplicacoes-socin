@@ -1,4 +1,5 @@
 import os
+import time
 from core.auth import get_authenticated_session
 from core.file_builder import gerar_arquivos
 from core.parser import mudar_diretorio
@@ -14,16 +15,13 @@ def baixar_arquivos(versao, path, log_callback=print, progress_callback=None, ca
 
     arquivos = gerar_arquivos(versao, path, incluir_restaurante, bits)
     
-    # Filtros baseados no modo selecionado
     if modo == "atualizadores":
         arquivos = [a for a in arquivos if a["arquivo"].startswith("CONC_V_RLS") or a["arquivo"].startswith("PDV_V_RLS") or a["arquivo"].startswith("V_RLS")]
     elif apenas_arquivo:
         arquivos = [a for a in arquivos if a["arquivo"] == apenas_arquivo]
     elif modo == "completo" and not incluir_restaurante:
-        # Se for pacote completo e o usuário disse NÃO para o restaurante, remove ele da fila de download
         arquivos = [a for a in arquivos if "installRES" not in a["arquivo"]]
 
-    # Ajuste de caminho dinâmico para as pastas especiais
     if versao in ["instaladores", "sistema_operacional"]:
         pasta_temp = f"temp/{versao}"
         diretorio_base = f"/aplicativos/{versao}"
@@ -52,7 +50,7 @@ def baixar_arquivos(versao, path, log_callback=print, progress_callback=None, ca
         log_callback(f"Baixando: {arquivo}...")
 
         if progress_callback:
-            progress_callback(0.0, "0% - Verificando...", arquivo)
+            progress_callback(0.0, "Calculando velocidade...", arquivo)
 
         try:
             response = session.get(download_url, stream=True, timeout=30)
@@ -65,8 +63,11 @@ def baixar_arquivos(versao, path, log_callback=print, progress_callback=None, ca
                 caminho_arquivo = os.path.join(pasta_temp, arquivo)
                 download_concluido = True 
                 
+                tempo_inicio = time.time()
+                
                 with open(caminho_arquivo, "wb") as f:
-                    for chunk in response.iter_content(chunk_size=8192):
+                    # Bloco de 256KB para giro rápido dos decimais na tela
+                    for chunk in response.iter_content(chunk_size=262144):
                         if cancel_callback and cancel_callback():
                             download_concluido = False
                             break
@@ -76,9 +77,38 @@ def baixar_arquivos(versao, path, log_callback=print, progress_callback=None, ca
                             tamanho_baixado += len(chunk)
                             
                             if tamanho_total > 0 and progress_callback:
+                                tempo_decorrido = time.time() - tempo_inicio
+                                
+                                if tempo_decorrido > 0:
+                                    velocidade_bps = tamanho_baixado / tempo_decorrido
+                                    bytes_restantes = tamanho_total - tamanho_baixado
+                                    tempo_restante_seg = bytes_restantes / velocidade_bps
+                                    
+                                    # LÓGICA DO CHROME PARA A VELOCIDADE (KB/s ou MB/s)
+                                    if velocidade_bps < (1024 * 1024):
+                                        velocidade_str = f"{int(velocidade_bps / 1024)} KB/s"
+                                    else:
+                                        velocidade_str = f"{(velocidade_bps / (1024 * 1024)):.1f} MB/s"
+                                    
+                                    # LÓGICA DE TEMPO
+                                    minutos = int(tempo_restante_seg // 60)
+                                    segundos = int(tempo_restante_seg % 60)
+                                    if minutos > 0:
+                                        tempo_str = f"{minutos}:{segundos:02d} mins restantes"
+                                    else:
+                                        tempo_str = f"{segundos} segs restantes"
+                                        
+                                else:
+                                    velocidade_str = "0 KB/s"
+                                    tempo_str = "Calculando..."
+
+                                # MEGABYTES COM CASAS DECIMAIS GIRANDO (.1f)
                                 baixado_mb = tamanho_baixado / (1024 * 1024)
                                 percentual_float = tamanho_baixado / tamanho_total
-                                texto_stats = f"{int(percentual_float * 100)}% - {baixado_mb:.1f} MB de {total_mb:.1f} MB"
+                                
+                                # TEXTO NO PADRÃO EXATO DO PRINT
+                                texto_stats = f"{velocidade_str} - {baixado_mb:.1f} MB de {total_mb:.1f} MB, {tempo_str}"
+                                
                                 progress_callback(percentual_float, texto_stats, arquivo)
                 
                 if not download_concluido:
