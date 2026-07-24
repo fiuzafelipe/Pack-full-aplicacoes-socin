@@ -38,11 +38,9 @@ class TelaDeBloqueio:
 
     def mostrar_menu_contexto(self, event):
         try:
-            # TRAVA DE SEGURANÇA: Se a tela de bloqueio estiver ativa, não mostra o menu de jeito nenhum!
             if self.lock_frame is not None:
                 return
 
-            # Garante que o menu só apareça na janela principal e não em subjanelas (Config, Gerenciador, etc)
             if event.widget.winfo_toplevel() != self.app:
                 return
 
@@ -63,7 +61,6 @@ class TelaDeBloqueio:
             messagebox.showinfo("Plano de Bloqueio", f"Nenhuma imagem ou vídeo encontrado.\nPor favor, adicione arquivos na pasta:\n{pasta_assets}")
             return
 
-        # Fundo base do lock_frame
         self.lock_frame = ctk.CTkFrame(self.app, corner_radius=0, fg_color="#000000")
         self.lock_frame.place(relx=0, rely=0, relwidth=1, relheight=1)
 
@@ -72,7 +69,7 @@ class TelaDeBloqueio:
         
         paleta = self.app.cores_destaque[self.app.combo_cor.get()]
         
-        # --- PAINEL TOPO (DASHBOARD COMPACTO E FINO) ---
+        # --- PAINEL TOPO ---
         self.frame_topo_concluido = ctk.CTkFrame(self.lock_frame, width=520, height=90, fg_color="#0A0A0A", 
                                                  border_width=2, border_color=paleta["fg"], corner_radius=0)
         self.frame_topo_concluido.pack_propagate(False)
@@ -97,7 +94,7 @@ class TelaDeBloqueio:
         self.progressbar_topo.configure(progress_color=paleta["fg"])
         self.progressbar_topo.pack(fill="x", padx=20, pady=(0, 6))
         
-        # --- PAINEL CENTRAL (CANTOS RETOS) ---
+        # --- PAINEL CENTRAL ---
         self.frame_central = ctk.CTkFrame(self.lock_frame, width=350, height=80, corner_radius=0, 
                                           fg_color="#0A0A0A", border_width=2, border_color=paleta["fg"])
         self.frame_central.place(relx=0.5, rely=0.45, anchor="center")
@@ -105,35 +102,34 @@ class TelaDeBloqueio:
                                font=("Segoe UI", 16, "bold"), text_color="#FFFFFF")
         lbl_msg.pack(pady=20, padx=30)
 
-        # --- PAINEL INFERIOR (CANTOS RETOS) ---
+        # --- PAINEL INFERIOR (TEXTO CENTRALIZADO) ---
         self.frame_bottom = ctk.CTkFrame(self.lock_frame, corner_radius=0, 
                                          fg_color="#0A0A0A", border_width=2, border_color=paleta["fg"])
         self.frame_bottom.place(relx=0.5, rely=0.88, anchor="center", relwidth=0.8)
 
-        self.lbl_bloqueio_arquivo = ctk.CTkLabel(self.frame_bottom, text="Download pendente...", font=("Segoe UI", 16, "bold"), text_color="#FFFFFF")
-        self.lbl_bloqueio_arquivo.pack(pady=(15, 5))
+        # anchor="center" e justify="center" garantem o alinhamento central absoluto
+        self.lbl_bloqueio_arquivo = ctk.CTkLabel(self.frame_bottom, text="Download pendente...", font=("Segoe UI", 16, "bold"), text_color="#FFFFFF", anchor="center", justify="center")
+        self.lbl_bloqueio_arquivo.pack(pady=(15, 5), fill="x")
 
         self.bloqueio_progressbar = ctk.CTkProgressBar(self.frame_bottom, mode="determinate", height=12, corner_radius=0)
         self.bloqueio_progressbar.set(0)
         self.bloqueio_progressbar.configure(progress_color=paleta["fg"])
         self.bloqueio_progressbar.pack(fill="x", padx=30, pady=5)
 
-        self.lbl_bloqueio_stats = ctk.CTkLabel(self.frame_bottom, text="", font=("Segoe UI", 14, "bold"), text_color="#FFFFFF")
-        self.lbl_bloqueio_stats.pack(pady=(5, 15))
+        self.lbl_bloqueio_stats = ctk.CTkLabel(self.frame_bottom, text="", font=("Segoe UI", 14, "bold"), text_color="#FFFFFF", anchor="center", justify="center")
+        self.lbl_bloqueio_stats.pack(pady=(5, 15), fill="x")
 
         if getattr(self.app, 'is_downloading', False):
             self.lbl_bloqueio_arquivo.configure(text="Sincronizando com o download...")
         else:
             self.bloqueio_progressbar.pack_forget()
 
-        # Vincula fechamento aos elementos
         self.lbl_fundo.bind("<Button-1>", self.sair_bloqueio)
         self.frame_central.bind("<Button-1>", self.sair_bloqueio)
         lbl_msg.bind("<Button-1>", self.sair_bloqueio)
         self.frame_bottom.bind("<Button-1>", self.sair_bloqueio)
         self.frame_topo_concluido.bind("<Button-1>", self.sair_bloqueio)
 
-        # Inicia mídias e atualiza painel topo
         self.idx_midia = 0
         self.transicionar_midia()
         self.sincronizar_painel_topo()
@@ -208,7 +204,6 @@ class TelaDeBloqueio:
                 if child.cget("text") == "⏳":
                     child.configure(text="✅")
 
-    # --- MOTOR DE VÍDEO E IMAGEM ---
     def transicionar_midia(self):
         if not self.lock_frame or not self.midias:
             return
@@ -466,9 +461,6 @@ class App(ctk.CTk):
 
         self.log("Sistema iniciado.")
 
-    # ==========================================
-    # AÇÕES PÓS-DOWNLOAD E NOVO GERENCIADOR
-    # ==========================================
     def acao_apagar_pasta(self):
         if self.pasta_concluida and os.path.exists(self.pasta_concluida):
             if messagebox.askyesno("Confirmar Exclusão", f"Tem certeza que deseja apagar permanentemente:\n{self.pasta_concluida}?"):
@@ -493,9 +485,6 @@ class App(ctk.CTk):
         self.mudar_status("⏳ Pronto para iniciar", "#E0E0E0" if self.combo_modo.get() == "Light" else "#333333", 
                           "#000000" if self.combo_modo.get() == "Light" else "#FFFFFF")
 
-    # ==========================================
-    # SUPER GERENCIADOR DE ARQUIVOS BLINDADO
-    # ==========================================
     def abrir_gerenciador(self):
         self.janela_gerenciador = ctk.CTkToplevel(self)
         self.janela_gerenciador.title("Gerenciador de Pastas (Temp / Output)")
@@ -720,9 +709,6 @@ class App(ctk.CTk):
                 except Exception as e:
                     messagebox.showerror("Erro", f"Ocorreu um erro ao mover: {e}", parent=self.janela_gerenciador)
 
-    # ==========================================
-    # MÉTODOS ORIGINAIS E TEMAS
-    # ==========================================
     def mudar_status(self, mensagem, cor_fundo, cor_texto):
         self.after(0, lambda: self.lbl_status.configure(text=mensagem, fg_color=cor_fundo, text_color=cor_texto))
 
