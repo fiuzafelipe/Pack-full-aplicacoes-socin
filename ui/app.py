@@ -102,12 +102,11 @@ class TelaDeBloqueio:
                                font=("Segoe UI", 16, "bold"), text_color="#FFFFFF")
         lbl_msg.pack(pady=20, padx=30)
 
-        # --- PAINEL INFERIOR (TEXTO CENTRALIZADO) ---
+        # --- PAINEL INFERIOR ---
         self.frame_bottom = ctk.CTkFrame(self.lock_frame, corner_radius=0, 
                                          fg_color="#0A0A0A", border_width=2, border_color=paleta["fg"])
         self.frame_bottom.place(relx=0.5, rely=0.88, anchor="center", relwidth=0.8)
 
-        # anchor="center" e justify="center" garantem o alinhamento central absoluto
         self.lbl_bloqueio_arquivo = ctk.CTkLabel(self.frame_bottom, text="Download pendente...", font=("Segoe UI", 16, "bold"), text_color="#FFFFFF", anchor="center", justify="center")
         self.lbl_bloqueio_arquivo.pack(pady=(15, 5), fill="x")
 
@@ -307,7 +306,7 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         
-        self.VERSAO_PROGRAMA = "v1.0.4"
+        self.VERSAO_PROGRAMA = "v1.0.5" # Atualizado para 1.0.5
         self.title(f"Fiuza Technology - Pack Full Aplicação Socin ({self.VERSAO_PROGRAMA})")
         self._aplicar_icone(self)
         
@@ -359,6 +358,14 @@ class App(ctk.CTk):
         self.aplicar_tema_inicial()
         self.bloqueio_manager = TelaDeBloqueio(self)
 
+        # Verificação automática de pós-atualização para exibir o Changelog da v1.0.5
+        config = carregar_config()
+        ultima_versao_vista = config.get("ultima_versao_vista", "")
+        if ultima_versao_vista != self.VERSAO_PROGRAMA:
+            self.after(600, self.mostrar_changelog)
+            config["ultima_versao_vista"] = self.VERSAO_PROGRAMA
+            salvar_config(config)
+
         if self.auto_update:
             threading.Thread(target=lambda: checar_atualizacao(self.VERSAO_PROGRAMA, self.log, self)).start()
 
@@ -369,6 +376,52 @@ class App(ctk.CTk):
                 janela.after(250, lambda: janela.iconbitmap(caminho_ico))
         except Exception:
             pass
+
+    def mostrar_changelog(self):
+        modal = ctk.CTkToplevel(self)
+        modal.title("Atualização Concluída!")
+        largura, altura = 460, 410
+        self.update_idletasks()
+        x = self.winfo_rootx() + (self.winfo_width() // 2) - (largura // 2)
+        y = self.winfo_rooty() + (self.winfo_height() // 2) - (altura // 2)
+        modal.geometry(f"{largura}x{altura}+{x}+{y}")
+        modal.resizable(False, False)
+        modal.transient(self)
+        
+        modal.attributes('-topmost', True)
+        modal.after(200, modal.grab_set)
+        modal.after(250, lambda: modal.focus_force())
+        modal.after(300, lambda: modal.attributes('-topmost', False))
+
+        paleta = self.cores_destaque[self.combo_cor.get()]
+
+        lbl_titulo = ctk.CTkLabel(modal, text="🚀 Releases 1.0.5", font=("Segoe UI Black", 18), text_color=paleta["fg"])
+        lbl_titulo.pack(pady=(20, 5))
+
+        lbl_sub = ctk.CTkLabel(modal, text="O sistema foi atualizado com sucesso! Veja as novidades:", font=("Segoe UI", 12), text_color="gray")
+        lbl_sub.pack(pady=(0, 10))
+
+        # Texto formatado com as melhorias solicitadas
+        mudancas = (
+            "• Compactação opcional\n"
+            "• Plano de fundo inteligente suporte imagens/vídeos\n"
+            "• Status de download via plano de fundo\n"
+            "• Gerenciamento de Pastas e Arquivos\n"
+            "• Ajustes visuais UI e refinamentos de design\n"
+            "• Correções de bugs e otimizações gerais"
+        )
+
+        txt_box = ctk.CTkTextbox(modal, width=400, height=170, corner_radius=8, font=("Segoe UI", 12))
+        txt_box.pack(pady=5)
+        txt_box.insert("0.1", mudancas)
+        txt_box.configure(state="disabled")
+
+        btn_ok = ctk.CTkButton(modal, text="OK", width=140, height=35, command=modal.destroy,
+                               fg_color=paleta["fg"], hover_color=paleta["hover"], text_color=paleta["text"])
+        btn_ok.pack(pady=15)
+        
+        modal.bind("<Return>", lambda e: modal.destroy())
+        self._aplicar_icone(modal)
 
     def criar_widgets(self):
         self.btn_config = ctk.CTkButton(

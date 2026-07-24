@@ -7,7 +7,7 @@ cd /d "%~dp0"
 
 echo.
 echo ==========================================================
-echo                    FIUZA TECHNOLOGY BUILD
+echo                     FIUZA TECHNOLOGY BUILD
 echo ==========================================================
 echo.
 
@@ -39,7 +39,7 @@ echo.
 :: BUILD PACK_ECONECT
 :: ==========================================================
 echo ==========================================================
-echo                GERANDO PACK_ECONECT.EXE
+echo                    GERANDO PACK_ECONECT.EXE
 echo ==========================================================
 echo.
 
@@ -65,6 +65,7 @@ echo.
 --hidden-import=core.updater ^
 --hidden-import=core.zip_manager ^
 --add-data "assets;assets" ^
+--add-data "assets\wallpaper;assets\wallpaper" ^
 --icon=assets/icon.ico ^
 --name Pack_econect ^
 main.py
@@ -82,7 +83,7 @@ timeout /t 2 >nul
 :: ==========================================================
 echo.
 echo ==========================================================
-echo                GERANDO UPDATER.EXE
+echo                    GERANDO UPDATER.EXE
 echo ==========================================================
 echo.
 
@@ -107,7 +108,6 @@ if exist updater_launcher.py (
     echo AVISO: updater_launcher.py nao encontrado. Ignorando updater...
 )
 
-:: Limpeza de pastas temporarias de codigo, mantendo apenas os executaveis finais
 if exist build rmdir /s /q build >nul 2>&1
 if exist build_updater rmdir /s /q build_updater >nul 2>&1
 if exist Pack_econect.spec del /f /q Pack_econect.spec >nul 2>&1
@@ -118,7 +118,7 @@ if exist updater.spec del /f /q updater.spec >nul 2>&1
 :: ==========================================================
 echo.
 echo ==========================================================
-echo                   BUILD FINALIZADA
+echo                        BUILD FINALIZADA
 echo ==========================================================
 echo.
 echo COMPILACAO CONCLUIDA COM SUCESSO!
