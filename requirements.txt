@@ -1,6 +1,6 @@
 Backend
 
-pip install requests beautifulsoup4 lxml pillow
+pip install requests beautifulsoup4 lxml pillow cryptography opencv-python
 
 Frontend
 
