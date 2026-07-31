@@ -375,7 +375,10 @@ class GerenciadorNuvem:
 
     async def processar_movimentacao(self, msg_obj, nova_pasta):
         try:
-            self.app.log(f"[SISTEMA] Movendo arquivo para '{self.app.map_backend_to_ui.get(nova_pasta, nova_pasta).replace('    ↳ 📁 ', '').replace('📁 ', '').replace('\u200b', '')}'...")
+            # CORREÇÃO: Limpando a string FORA da f-string para não dar erro no Python 3.8
+            nome_pasta_limpo = self.app.map_backend_to_ui.get(nova_pasta, nova_pasta).replace('    ↳ 📁 ', '').replace('📁 ', '').replace('\u200b', '')
+            self.app.log(f"[SISTEMA] Movendo arquivo para '{nome_pasta_limpo}'...")
+            
             novo_caption = f"{nova_pasta} \nEnviado via Fiuza Cloud"
             try:
                 await self.app.client.edit_message('me', msg_obj.id, text=novo_caption)
@@ -527,7 +530,10 @@ class GerenciadorNuvem:
             self.app.mudar_status("❌ Erro ao mover pasta", "#dc3545", "#FFFFFF")
 
     def acao_apagar_pasta(self, pasta):
-        if messagebox.askyesno("Excluir Pasta", f"CUIDADO: Deseja apagar a pasta '{self.app.map_backend_to_ui.get(pasta, pasta).replace('    ↳ 📁 ', '').replace('📁 ', '').replace('\u200b', '')}' e TODOS os arquivos da Nuvem?", parent=self.popup_mgr):
+        # CORREÇÃO: Limpando a string FORA da f-string para não dar erro no Python 3.8
+        nome_pasta_limpo = self.app.map_backend_to_ui.get(pasta, pasta).replace('    ↳ 📁 ', '').replace('📁 ', '').replace('\u200b', '')
+        
+        if messagebox.askyesno("Excluir Pasta", f"CUIDADO: Deseja apagar a pasta '{nome_pasta_limpo}' e TODOS os arquivos da Nuvem?", parent=self.popup_mgr):
             asyncio.run_coroutine_threadsafe(self.processar_delecao_pasta(pasta), self.app.async_loop)
 
     async def processar_delecao_pasta(self, pasta):

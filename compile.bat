@@ -11,7 +11,7 @@ echo                    FIUZA TECHNOLOGY BUILD
 echo ==========================================================
 echo.
 
-set PYTHON=py -3.12
+set PYTHON=py -3.8
 
 echo Limpando builds antigos e processos presos...
 echo.
@@ -56,6 +56,7 @@ echo.
 --collect-all certifi ^
 --collect-all cryptography ^
 --collect-all PIL ^
+--collect-all cv2 ^
 --hidden-import=ui ^
 --hidden-import=ui.app ^
 --hidden-import=core ^
@@ -97,13 +98,14 @@ if exist "telegram_api\telegram_cloud_app.py" (
     --onedir ^
     --windowed ^
     --paths=. ^
+    --paths=telegram_api ^
     --collect-all customtkinter ^
     --collect-all telethon ^
     --collect-all PIL ^
-    --hidden-import=telegram_api ^
-    --hidden-import=telegram_api.utils ^
-    --hidden-import=telegram_api.tela_bloqueio ^
-    --hidden-import=telegram_api.gerenciador ^
+    --hidden-import=utils ^
+    --hidden-import=tela_bloqueio ^
+    --hidden-import=cryptg ^
+    --add-data "telegram_api\gerenciador.py;." ^
     --add-data "assets;assets" ^
     --add-data ".env;." ^
     --icon=assets/cloud.ico ^

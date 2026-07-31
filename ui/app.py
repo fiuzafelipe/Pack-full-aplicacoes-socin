@@ -453,7 +453,7 @@ class App(ctk.CTk):
         
         lbl_modo = ctk.CTkLabel(frame_temas, text="Modo Visual:", font=("Segoe UI", 11))
         lbl_modo.pack(side="left", padx=(0, 8))
-        self.combo_modo = ctk.CTkComboBox(frame_temas, values=["Dark", "Light"], width=110, height=28, command=self.mudar_tema)
+        self.combo_modo = ctk.CTkComboBox(frame_temas, values=["Light", "Dark"], width=110, height=28, command=self.mudar_tema)
         self.combo_modo.pack(side="left")
 
         self.combo_cor = ctk.CTkComboBox(frame_temas, values=list(self.cores_destaque.keys()), width=110, height=28, command=self.mudar_tema)

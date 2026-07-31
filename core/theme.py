@@ -13,10 +13,12 @@ def carregar_tema():
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
-                return config.get("modo", "Dark"), config.get("cor", "Azul"), config.get("auto_update", True)
+                # Troquei o fallback de "Dark" para "Light" aqui
+                return config.get("modo", "Light"), config.get("cor", "Azul"), config.get("auto_update", True)
         except Exception:
             pass
-    return "Dark", "Azul", True
+    # Troquei o retorno padrão de "Dark" para "Light" aqui também
+    return "Light", "Azul", True
 
 def salvar_tema(modo, cor, auto_update):
     path = get_config_path()
