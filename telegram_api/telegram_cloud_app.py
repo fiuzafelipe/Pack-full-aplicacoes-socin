@@ -23,11 +23,6 @@ pasta_raiz = os.path.dirname(pasta_api)
 if pasta_raiz not in sys.path:
     sys.path.insert(0, pasta_raiz)
 
-try:
-    from core.theme import carregar_tema
-except Exception:
-    carregar_tema = None
-
 from utils import obter_caminho, centralizar_janela, formatar_tamanho
 from tela_bloqueio import TelaDeBloqueio
 
@@ -88,18 +83,6 @@ class TelegramCloudApp(ctk.CTk):
         self.pastas_locais, self.ordem_arquivos, self.saved_modo, self.saved_cor, self.primeiro_acesso = self.carregar_configuracoes()
         self.pastas_nuvem = {pasta: [] for pasta in self.pastas_locais} 
         self.pasta_atual_mgr = None
-
-        # --- LÓGICA DE SINCRONIZAÇÃO DE TEMA ---
-        # Se o módulo core.theme for importado com sucesso, ele pega o tema do Pack Socin (main.py)
-        if carregar_tema:
-            try:
-                modo_main, cor_main, _ = carregar_tema()
-                if modo_main and cor_main:
-                    self.saved_modo = modo_main
-                    self.saved_cor = cor_main
-            except Exception:
-                pass
-        # ---------------------------------------
 
         if not self.api_id or not self.api_hash:
             messagebox.showerror("Erro Crítico", f"Credenciais do Telegram não encontradas!\nO arquivo .env não foi localizado.")
@@ -433,6 +416,19 @@ class TelegramCloudApp(ctk.CTk):
             self.ao_selecionar_combobox('down')
 
     def carregar_configuracoes(self):
+        import shutil
+        
+        # Se for o primeiro acesso na máquina (o save não existe no APPDATA)
+        # Vamos tentar copiar o "Save de Fábrica" da pasta assets!
+        if not os.path.exists(self.arquivo_config_pastas):
+            caminho_padrao = obter_caminho("assets/default_save.json")
+            if os.path.exists(caminho_padrao):
+                try:
+                    shutil.copy2(caminho_padrao, self.arquivo_config_pastas)
+                except Exception as e:
+                    self.log(f"[AVISO] Não foi possível injetar o save padrão: {e}")
+
+        # Agora faz o carregamento normal dos dados
         if os.path.exists(self.arquivo_config_pastas):
             try:
                 with open(self.arquivo_config_pastas, "r", encoding="utf-8") as f:
@@ -941,11 +937,20 @@ class TelegramCloudApp(ctk.CTk):
                 bg_status, fg_status = "#F8F9FA", "#888888" 
                 
                 self.style.configure("TCombobox", fieldbackground="#FFFFFF", background="#E8ECEF", foreground="#000000", bordercolor="#D1D1D1", arrowcolor="#000000")
+                
+                # Remove o fundo de seleção padrão do Windows e mantém tudo legível no Modo Claro
+                self.style.map("TCombobox", 
+                               fieldbackground=[("readonly", "#FFFFFF"), ("focus", "#FFFFFF")], 
+                               selectbackground=[("readonly", "#FFFFFF"), ("focus", "#FFFFFF")], 
+                               selectforeground=[("readonly", "#000000"), ("focus", "#000000")],
+                               foreground=[("readonly", "#000000"), ("focus", "#000000")])
+                
                 self.option_add('*TCombobox*Listbox.background', '#FFFFFF')
                 self.option_add('*TCombobox*Listbox.foreground', '#000000')
                 self.option_add('*TCombobox*Listbox.selectBackground', paleta["fg"])
                 self.option_add('*TCombobox*Listbox.selectForeground', '#FFFFFF')
                 self.option_add('*TCombobox*Listbox.font', ("Segoe UI", 11))
+                
             else:
                 self.configure(fg_color="#0F0F0F")
                 if hasattr(self, 'login_card') and self.login_card.winfo_exists(): self.login_card.configure(fg_color="#1A1A1A", border_color=paleta["fg"], border_width=2)
@@ -963,12 +968,40 @@ class TelegramCloudApp(ctk.CTk):
                 bg_status, fg_status = "#252525", "#AAAAAA"
                 
                 self.style.configure("TCombobox", fieldbackground="#1A1A1A", background="#0F0F0F", foreground="#FFFFFF", bordercolor="#333333", arrowcolor="#FFFFFF")
+                
+                # Remove o fundo de seleção cinza e mantém tudo 100% escuro e nítido no Modo Escuro
+                self.style.map("TCombobox", 
+                               fieldbackground=[("readonly", "#1A1A1A"), ("focus", "#1A1A1A")], 
+                               selectbackground=[("readonly", "#1A1A1A"), ("focus", "#1A1A1A")], 
+                               selectforeground=[("readonly", "#FFFFFF"), ("focus", "#FFFFFF")],
+                               foreground=[("readonly", "#FFFFFF"), ("focus", "#FFFFFF")])
+                
                 self.option_add('*TCombobox*Listbox.background', '#1A1A1A')
                 self.option_add('*TCombobox*Listbox.foreground', '#FFFFFF')
                 self.option_add('*TCombobox*Listbox.selectBackground', paleta["fg"])
                 self.option_add('*TCombobox*Listbox.selectForeground', '#FFFFFF')
                 self.option_add('*TCombobox*Listbox.font', ("Segoe UI", 11))
         except: pass
+
+        # =========================================================================
+        # CAÇADOR DE CACHE DO COMBOBOX (Atualiza a lista suspensa em tempo real)
+        # =========================================================================
+        try:
+            bg_cor = '#FFFFFF' if modo == "Light" else '#1A1A1A'
+            fg_cor = '#000000' if modo == "Light" else '#FFFFFF'
+            
+            # Vasculha a raiz do sistema atrás das listas ocultas (popdowns)
+            for widget_name in self.tk.call('winfo', 'children', '.'):
+                if 'popdown' in str(widget_name):
+                    # Força a pintura do fundo, texto e cor de seleção em tempo real
+                    self.tk.call(f'{widget_name}.f.l', 'configure', 
+                                 '-background', bg_cor, 
+                                 '-foreground', fg_cor, 
+                                 '-selectbackground', paleta["fg"], 
+                                 '-selectforeground', '#FFFFFF')
+        except Exception:
+            pass
+        # =========================================================================
 
         botoes = []
         if hasattr(self, 'btn_send_code'): botoes.append(self.btn_send_code)
