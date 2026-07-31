@@ -306,7 +306,7 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         
-        self.VERSAO_PROGRAMA = "v1.0.5" # Atualizado para 1.0.5
+        self.VERSAO_PROGRAMA = "v1.0.0"
         self.title(f"Fiuza Technology - Pack Full Aplicação Socin ({self.VERSAO_PROGRAMA})")
         self._aplicar_icone(self)
         
@@ -395,7 +395,7 @@ class App(ctk.CTk):
 
         paleta = self.cores_destaque[self.combo_cor.get()]
 
-        lbl_titulo = ctk.CTkLabel(modal, text="🚀 Releases 1.0.5", font=("Segoe UI Black", 18), text_color=paleta["fg"])
+        lbl_titulo = ctk.CTkLabel(modal, text="🚀 Releases 1.0.6", font=("Segoe UI Black", 18), text_color=paleta["fg"])
         lbl_titulo.pack(pady=(20, 5))
 
         lbl_sub = ctk.CTkLabel(modal, text="O sistema foi atualizado com sucesso! Veja as novidades:", font=("Segoe UI", 12), text_color="gray")
@@ -403,12 +403,13 @@ class App(ctk.CTk):
 
         # Texto formatado com as melhorias solicitadas
         mudancas = (
-            "• Compactação opcional\n"
-            "• Plano de fundo inteligente suporte imagens/vídeos\n"
-            "• Status de download via plano de fundo\n"
-            "• Gerenciamento de Pastas e Arquivos\n"
-            "• Ajustes visuais UI e refinamentos de design\n"
-            "• Correções de bugs e otimizações gerais"
+            "• Integração de recurso nuvem (Engrenagem) via API Telegram ilimitada\n"
+            "• Senha de acesso e modo gerenciamento de arquivos - Recurso nuvem\n"
+            "• Organização de Pastas e Arquivos (Renomear/arrastar/apagar) - DEV\n"
+            "• Sistema de busca por pasta/arquivos via LUPA\n"
+            "• Identificador de download por pasta/arquivos\n"
+            "• Sistema de modo alternativo (Modo usuario/Modo Dev)\n"
+            "• Layout Moderno e refinamentos visuais"
         )
 
         txt_box = ctk.CTkTextbox(modal, width=400, height=170, corner_radius=8, font=("Segoe UI", 12))
@@ -917,7 +918,8 @@ class App(ctk.CTk):
     def abrir_configuracoes(self):
         modal_cfg = ctk.CTkToplevel(self)
         modal_cfg.title("Configurações do Sistema")
-        largura, altura = 400, 260
+        # Aumentei a altura de 260 para 320 para acomodar o novo botão com folga
+        largura, altura = 400, 320
         self.update_idletasks()
         x = self.winfo_rootx() + (self.winfo_width() // 2) - (largura // 2)
         y = self.winfo_rooty() + (self.winfo_height() // 2) - (altura // 2)
@@ -946,7 +948,21 @@ class App(ctk.CTk):
 
         self.switch_var = ctk.BooleanVar(value=self.auto_update)
         switch_update = ctk.CTkSwitch(modal_cfg, text="Atualizar automaticamente (GitHub)", variable=self.switch_var, command=self.salvar_config_modal, progress_color=paleta["fg"])
-        switch_update.pack(pady=(10, 25))
+        switch_update.pack(pady=(10, 15))
+
+        # --- NOVO BOTÃO DE INTEGRAÇÃO NUVEM ---
+        btn_nuvem = ctk.CTkButton(
+            modal_cfg, 
+            text="☁️ Alternar para integração API Nuvem Ilimitada", 
+            height=35, 
+            fg_color="#17a2b8", 
+            hover_color="#138496", 
+            text_color="#FFFFFF",
+            corner_radius=8,
+            command=self.acionar_api_nuvem
+        )
+        btn_nuvem.pack(pady=(0, 15), fill="x", padx=30)
+        # --------------------------------------
 
         btn_fechar_cfg = ctk.CTkButton(modal_cfg, text="FECHAR", width=120, height=32, command=modal_cfg.destroy, fg_color="#6c757d", hover_color="#5a6268", text_color="#FFFFFF")
         btn_fechar_cfg.pack(pady=(0, 15))
@@ -956,6 +972,66 @@ class App(ctk.CTk):
         self.auto_update = self.switch_var.get()
         salvar_tema(self.combo_modo.get(), self.combo_cor.get(), self.auto_update)
         self.log(f"Status do Auto-Update alterado para: {self.auto_update}")
+
+    # --- LÓGICA DE TRANSIÇÃO ---
+    def acionar_api_nuvem(self):
+        self.log("[SISTEMA] Preparando ambiente da Nuvem Ilimitada (Telegram API)...")
+        self.mudar_status("☁️ Conectando à nuvem...", "#17a2b8", "#FFFFFF")
+        self.after(500, self._abrir_telegram_cloud)
+
+    def _abrir_telegram_cloud(self):
+        import subprocess
+        try:
+            if getattr(sys, 'frozen', False):
+                # Se for o executável compilado (.exe)
+                caminho_exe = os.path.join(os.path.dirname(sys.executable), "TelegramCloud.exe")
+                if os.path.exists(caminho_exe):
+                    subprocess.Popen([caminho_exe])
+                else:
+                    messagebox.showerror("Erro", "O módulo da Nuvem (TelegramCloud.exe) não foi encontrado na pasta de instalação.")
+                    return
+            else:
+                pasta_ui = os.path.dirname(os.path.abspath(__file__))
+                pasta_raiz = os.path.dirname(pasta_ui)
+                
+                # Sistema Inteligente de Busca: Tenta encontrar o arquivo nas rotas mais prováveis
+                possiveis_caminhos = [
+                    os.path.join(pasta_raiz, "telegram_api", "telegram_cloud_app.py"),     # Se estiver na raiz
+                    os.path.join(pasta_ui, "telegram_api", "telegram_cloud_app.py"),       # Se estiver dentro da ui
+                    os.path.join(pasta_raiz, "telegram_api", "telegram_cloud_app.py.py"),  # Se o Windows duplicou o .py
+                    os.path.join(pasta_raiz, "telegram_cloud_app.py")                      # Se estiver solto na raiz
+                ]
+                
+                caminho_script = None
+                for caminho in possiveis_caminhos:
+                    if os.path.exists(caminho):
+                        caminho_script = caminho
+                        break
+                
+                if caminho_script:
+                    # Se achou, abre garantindo que a raiz do projeto seja o local de trabalho
+                    subprocess.Popen([sys.executable, caminho_script], cwd=pasta_raiz)
+                else:
+                    # Se não achou em nenhum lugar, abre uma janela para o usuário escolher o arquivo!
+                    messagebox.showwarning("Aviso", "O sistema não encontrou o arquivo automaticamente.\n\nPor favor, localize e selecione o arquivo 'telegram_cloud_app.py' na próxima janela.")
+                    caminho_script = filedialog.askopenfilename(
+                        title="Selecione o arquivo telegram_cloud_app.py",
+                        filetypes=[("Python Files", "*.py")]
+                    )
+                    
+                    if caminho_script:
+                        subprocess.Popen([sys.executable, caminho_script], cwd=pasta_raiz)
+                    else:
+                        self.mudar_status("❌ Operação Cancelada", "#dc3545", "#FFFFFF")
+                        return # Usuário cancelou a seleção manual
+            
+            # Fecha a janela atual encerrando o processo limpamente
+            self.destroy()
+            sys.exit(0)
+            
+        except Exception as e:
+            messagebox.showerror("Erro Crítico", f"Não foi possível iniciar a Nuvem: {e}")
+            self.log(f"[ERRO] Falha ao alternar para nuvem: {e}")
 
     def abrir_modal_opcoes(self):
         versao = self.combo_versao.get()

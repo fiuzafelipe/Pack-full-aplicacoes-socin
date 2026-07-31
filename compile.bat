@@ -1,13 +1,13 @@
 @echo off
 title Fiuza Technology - Build Executavel
-mode con: cols=90 lines=35
+mode con: cols=90 lines=40
 color 0B
 
 cd /d "%~dp0"
 
 echo.
 echo ==========================================================
-echo                     FIUZA TECHNOLOGY BUILD
+echo                    FIUZA TECHNOLOGY BUILD
 echo ==========================================================
 echo.
 
@@ -17,6 +17,7 @@ echo Limpando builds antigos e processos presos...
 echo.
 
 taskkill /f /im Pack_econect.exe >nul 2>&1
+taskkill /f /im TelegramCloud.exe >nul 2>&1
 taskkill /f /im updater.exe >nul 2>&1
 taskkill /f /im pyinstaller.exe >nul 2>&1
 
@@ -26,6 +27,7 @@ if exist dist rmdir /s /q dist
 if exist dist_updater rmdir /s /q dist_updater
 
 if exist Pack_econect.spec del /f /q Pack_econect.spec
+if exist TelegramCloud.spec del /f /q TelegramCloud.spec
 if exist updater.spec del /f /q updater.spec
 
 for /d /r %%d in (__pycache__) do (
@@ -36,10 +38,10 @@ echo Limpeza concluida.
 echo.
 
 :: ==========================================================
-:: BUILD PACK_ECONECT
+:: BUILD 1: PACK_ECONECT (App Principal)
 :: ==========================================================
 echo ==========================================================
-echo                    GERANDO PACK_ECONECT.EXE
+echo                1/3 - GERANDO PACK_ECONECT.EXE
 echo ==========================================================
 echo.
 
@@ -66,6 +68,7 @@ echo.
 --hidden-import=core.zip_manager ^
 --add-data "assets;assets" ^
 --add-data "assets\wallpaper;assets\wallpaper" ^
+--add-data ".env;." ^
 --icon=assets/icon.ico ^
 --name Pack_econect ^
 main.py
@@ -79,11 +82,57 @@ if errorlevel 1 (
 timeout /t 2 >nul
 
 :: ==========================================================
-:: BUILD UPDATER (SANDBOX ISOLADO)
+:: BUILD 2: TELEGRAM CLOUD (Integração Nuvem)
 :: ==========================================================
 echo.
 echo ==========================================================
-echo                    GERANDO UPDATER.EXE
+echo                2/3 - GERANDO TELEGRAMCLOUD.EXE
+echo ==========================================================
+echo.
+
+if exist "telegram_api\telegram_cloud_app.py" (
+    %PYTHON% -m PyInstaller ^
+    --noconfirm ^
+    --clean ^
+    --onedir ^
+    --windowed ^
+    --paths=. ^
+    --collect-all customtkinter ^
+    --collect-all telethon ^
+    --collect-all PIL ^
+    --hidden-import=telegram_api ^
+    --hidden-import=telegram_api.utils ^
+    --hidden-import=telegram_api.tela_bloqueio ^
+    --hidden-import=telegram_api.gerenciador ^
+    --add-data "assets;assets" ^
+    --add-data ".env;." ^
+    --icon=assets/cloud.ico ^
+    --name TelegramCloud ^
+    --distpath="dist\TelegramCloud_Temp" ^
+    telegram_api\telegram_cloud_app.py
+
+    if errorlevel 1 (
+        echo.
+        echo ERRO AO GERAR TELEGRAMCLOUD.EXE
+        goto FALHA_FINAL
+    )
+    
+    :: Move o executavel da nuvem e suas dependencias para a mesma pasta do app principal
+    xcopy /s /e /y "dist\TelegramCloud_Temp\TelegramCloud\*" "dist\Pack_econect\" >nul
+    rmdir /s /q "dist\TelegramCloud_Temp" >nul
+) else (
+    echo.
+    echo AVISO: telegram_api\telegram_cloud_app.py nao encontrado. Ignorando modulo de nuvem...
+)
+
+timeout /t 2 >nul
+
+:: ==========================================================
+:: BUILD 3: UPDATER (SANDBOX ISOLADO)
+:: ==========================================================
+echo.
+echo ==========================================================
+echo                3/3 - GERANDO UPDATER.EXE
 echo ==========================================================
 echo.
 
@@ -108,9 +157,11 @@ if exist updater_launcher.py (
     echo AVISO: updater_launcher.py nao encontrado. Ignorando updater...
 )
 
+:: Limpeza de pastas temporarias de codigo, mantendo apenas os executaveis finais
 if exist build rmdir /s /q build >nul 2>&1
 if exist build_updater rmdir /s /q build_updater >nul 2>&1
 if exist Pack_econect.spec del /f /q Pack_econect.spec >nul 2>&1
+if exist TelegramCloud.spec del /f /q TelegramCloud.spec >nul 2>&1
 if exist updater.spec del /f /q updater.spec >nul 2>&1
 
 :: ==========================================================
@@ -123,11 +174,11 @@ echo ==========================================================
 echo.
 echo COMPILACAO CONCLUIDA COM SUCESSO!
 echo.
-echo 1. O seu app principal esta em 'dist\Pack_econect'.
+echo 1. O seu app principal (e a Nuvem) estao em 'dist\Pack_econect'.
 echo 2. Se o updater foi gerado, estara em 'dist_updater'.
 echo.
 
-explorer dist
+explorer dist\Pack_econect
 
 echo msgbox "Compilacao concluida com sucesso!",64,"Fiuza Technology" > popup.vbs
 start /wait popup.vbs

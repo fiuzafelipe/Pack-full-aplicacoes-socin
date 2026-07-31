@@ -9,6 +9,10 @@ build/
 dist/
 *.spec
 
+# Env&Session
+*.env
+*.session
+
 # Releases
 releases/
 
