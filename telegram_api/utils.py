@@ -3,13 +3,16 @@ import sys
 import customtkinter as ctk
 
 # ==========================================
-# PATCH DE CORREÇÃO DO CUSTOMTKINTER
+# PATCH DE CORREÇÃO DO CUSTOMTKINTER (SCROLL)
 # ==========================================
-original_check = ctk.windows.widgets.ctk_scrollable_frame.CTkScrollableFrame._check_if_valid_scroll
-def patched_check(self, widget):
-    if isinstance(widget, str) or not hasattr(widget, "master"): return False
-    return original_check(self, widget)
-ctk.windows.widgets.ctk_scrollable_frame.CTkScrollableFrame._check_if_valid_scroll = patched_check
+try:
+    original_check = ctk.windows.widgets.ctk_scrollable_frame.CTkScrollableFrame.check_if_master_is_canvas
+    def patched_check(self, widget):
+        if isinstance(widget, str) or not hasattr(widget, "master"): return False
+        return original_check(self, widget)
+    ctk.windows.widgets.ctk_scrollable_frame.CTkScrollableFrame.check_if_master_is_canvas = patched_check
+except AttributeError:
+    pass
 
 def obter_caminho(caminho_relativo):
     try:

@@ -1,11 +1,28 @@
-Backend
-
-pip install requests beautifulsoup4 lxml pillow cryptography opencv-python
-
-Frontend
-
-pip install customtkinter
-
-EXE
-
-pip install pyinstaller
+altgraph==0.17.5
+certifi==2026.7.22
+cffi==1.17.1
+charset-normalizer==3.4.9
+cryptg==0.3.1
+cryptography==41.0.7
+customtkinter==5.2.2
+darkdetect==0.8.0
+idna==3.15
+importlib_metadata==8.5.0
+numpy==1.24.4
+opencv-python==4.8.1.78
+packaging==26.2
+pefile==2024.8.26
+pillow==10.4.0
+pyaes==1.6.1
+pyasn1==0.6.4
+pycparser==2.23
+pyinstaller==5.13.2
+pyinstaller-hooks-contrib==2023.5
+python-dotenv==1.0.1
+pywin32-ctypes==0.2.3
+requests==2.31.0
+rsa==4.9.1
+Telethon==1.44.0
+typing_extensions==4.13.2
+urllib3==1.26.18
+zipp==3.20.2

@@ -48,6 +48,7 @@ echo.
 %PYTHON% -m PyInstaller ^
 --noconfirm ^
 --clean ^
+--noupx ^
 --onedir ^
 --windowed ^
 --paths=. ^
@@ -95,6 +96,7 @@ if exist "telegram_api\telegram_cloud_app.py" (
     %PYTHON% -m PyInstaller ^
     --noconfirm ^
     --clean ^
+    --noupx ^
     --onedir ^
     --windowed ^
     --paths=. ^
@@ -104,7 +106,7 @@ if exist "telegram_api\telegram_cloud_app.py" (
     --collect-all PIL ^
     --hidden-import=utils ^
     --hidden-import=tela_bloqueio ^
-    --hidden-import=cryptg ^
+    --collect-all cryptg ^
     --add-data "telegram_api\gerenciador.py;." ^
     --add-data "assets;assets" ^
     --add-data ".env;." ^
@@ -142,6 +144,7 @@ if exist updater_launcher.py (
     %PYTHON% -m PyInstaller ^
     --noconfirm ^
     --clean ^
+    --noupx ^
     --onefile ^
     --windowed ^
     --uac-admin ^
