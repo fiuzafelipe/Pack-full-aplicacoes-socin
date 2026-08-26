@@ -1,3 +1,5 @@
+import os
+
 # =========================================================
 # MONTA AUTOMATICAMENTE OS NOMES E PASTAS DOS ARQUIVOS
 # =========================================================
@@ -70,3 +72,77 @@ def gerar_arquivos(versao, path, incluir_restaurante=True, bits=None):
     ]
 
     return arquivos
+
+# =========================================================
+# FUNÇÕES DE QUEBRA (SPLIT) E JUNÇÃO (MERGE) DE ARQUIVOS
+# =========================================================
+
+def split_file(file_path, chunk_size=1990000000):
+    """
+    Divide um arquivo grande em múltiplas partes menores.
+    Lê e grava em pequenos blocos (buffer) para não estourar a memória RAM.
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Arquivo não encontrado: {file_path}")
+
+    partes_geradas = []
+    parte_num = 1
+    buffer_size = 5 * 1024 * 1024 # Buffer de leitura de 5MB
+    
+    tamanho_total = os.path.getsize(file_path)
+    bytes_lidos_total = 0
+
+    # Abre o arquivo original apenas para leitura
+    with open(file_path, 'rb') as f_original:
+        while bytes_lidos_total < tamanho_total:
+            nome_parte = f"{file_path}.part{parte_num}"
+            bytes_na_parte = 0
+            
+            # Abre/Cria o arquivo da parte atual para escrita
+            with open(nome_parte, 'wb') as f_parte:
+                # Continua lendo blocos de 5MB até atingir o chunk_size (~1.9GB)
+                while bytes_na_parte < chunk_size and bytes_lidos_total < tamanho_total:
+                    # Calcula quanto falta ler para não ultrapassar o limite da parte ou do arquivo
+                    bytes_para_ler = min(buffer_size, chunk_size - bytes_na_parte, tamanho_total - bytes_lidos_total)
+                    
+                    chunk = f_original.read(bytes_para_ler)
+                    if not chunk:
+                        break
+                        
+                    f_parte.write(chunk)
+                    bytes_na_parte += len(chunk)
+                    bytes_lidos_total += len(chunk)
+                    
+            partes_geradas.append(nome_parte)
+            parte_num += 1
+            
+    return partes_geradas
+
+def merge_files(part_files, output_path):
+    """
+    Junta múltiplas partes de volta em um único arquivo original.
+    Lê os arquivos em pequenos buffers para não estourar a memória RAM.
+    """
+    if not part_files:
+        return None
+
+    # Ordena as partes numericamente pelo final da string (.part1, .part2, etc.)
+    # Isso é vital para remontar na ordem certa caso o array venha bagunçado do Telegram
+    part_files_sorted = sorted(part_files, key=lambda x: int(x.split('.part')[-1]))
+    
+    buffer_size = 5 * 1024 * 1024 # Buffer de 5MB por leitura
+    
+    # Abre o arquivo final em modo binário de escrita
+    with open(output_path, 'wb') as f_final:
+        for parte in part_files_sorted:
+            if not os.path.exists(parte):
+                raise FileNotFoundError(f"Parte ausente para o merge: {parte}")
+                
+            with open(parte, 'rb') as f_parte:
+                while True:
+                    chunk = f_parte.read(buffer_size)
+                    if not chunk:
+                        break
+                    f_final.write(chunk)
+                    
+    return output_path

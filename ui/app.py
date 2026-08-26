@@ -306,7 +306,7 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         
-        self.VERSAO_PROGRAMA = "v1.0.6"
+        self.VERSAO_PROGRAMA = "v1.0.7"
         self.title(f"Fiuza Technology - Pack Full Aplicação Socin ({self.VERSAO_PROGRAMA})")
         self._aplicar_icone(self)
         
@@ -395,7 +395,7 @@ class App(ctk.CTk):
 
         paleta = self.cores_destaque[self.combo_cor.get()]
 
-        lbl_titulo = ctk.CTkLabel(modal, text="🚀 Releases 1.0.6", font=("Segoe UI Black", 18), text_color=paleta["fg"])
+        lbl_titulo = ctk.CTkLabel(modal, text="🚀 Releases 1.0.7", font=("Segoe UI Black", 18), text_color=paleta["fg"])
         lbl_titulo.pack(pady=(20, 5))
 
         lbl_sub = ctk.CTkLabel(modal, text="O sistema foi atualizado com sucesso! Veja as novidades:", font=("Segoe UI", 12), text_color="gray")
@@ -403,13 +403,9 @@ class App(ctk.CTk):
 
         # Texto formatado com as melhorias solicitadas
         mudancas = (
-            "• Integração de recurso nuvem (Engrenagem) via API Telegram ilimitada\n"
-            "• Senha de acesso e modo gerenciamento de arquivos - Recurso nuvem\n"
-            "• Organização de Pastas e Arquivos (Renomear/arrastar/apagar) - DEV\n"
-            "• Sistema de busca por pasta/arquivos via LUPA\n"
-            "• Identificador de download por pasta/arquivos\n"
-            "• Sistema de modo alternativo (Modo usuario/Modo Dev)\n"
-            "• Layout Moderno e refinamentos visuais"
+            "• Recurso Cloud Telegram sem Limite de GB.\n"
+            "• Planos de Fundo em Alta Resolucao.\n"
+            "• Melhorias e aprimoramentos.\n"
         )
 
         txt_box = ctk.CTkTextbox(modal, width=400, height=170, corner_radius=8, font=("Segoe UI", 12))

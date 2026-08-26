@@ -3,8 +3,11 @@ import tkinter as tk
 import tkinter.ttk as ttk
 import asyncio
 import threading
-from telethon import TelegramClient
+from telethon import TelegramClient, utils
+from telethon.tl.functions.upload import SaveBigFilePartRequest
+from telethon.tl.types import InputFileBig
 from tkinter import filedialog, messagebox
+import cryptg
 import os
 import sys
 import subprocess
@@ -26,6 +29,8 @@ if pasta_raiz not in sys.path:
 from utils import obter_caminho, centralizar_janela, formatar_tamanho
 from tela_bloqueio import TelaDeBloqueio
 
+from core.file_builder import split_file, merge_files
+
 # CARREGA O .ENV COM O CAMINHO ABSOLUTO GARANTIDO
 load_dotenv(obter_caminho(".env"))
 
@@ -33,7 +38,7 @@ class TelegramCloudApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Fiuza Technology - Telegram Cloud Sync (v1.0.6)")
+        self.title("Fiuza Technology - Telegram Cloud Sync (v1.0.7)")
         centralizar_janela(self, 720, 610, offset_y=25)
         self.resizable(False, False)
 
@@ -1066,10 +1071,21 @@ class TelegramCloudApp(ctk.CTk):
 
     def get_progress_callback(self, action_name, filename):
         start_time = time.time()
+        last_update = [0] # Variável de controle para o limitador
+
         def progress_callback(current, total):
             if self.flag_cancelar: raise Exception("CANCELADO_PELO_USUARIO")
 
             now = time.time()
+            
+            # === O SEGREDO ESTÁ AQUI: LIMITADOR DE FPS ===
+            # Atualiza a interface visual apenas 4 vezes por segundo (a cada 0.25s)
+            if now - last_update[0] < 0.25 and current < total:
+                return
+                
+            last_update[0] = now
+            # =============================================
+
             elapsed = now - start_time
             if elapsed == 0: elapsed = 0.001
             speed_bytes = current / elapsed
@@ -1092,6 +1108,7 @@ class TelegramCloudApp(ctk.CTk):
             
             lock_stats_txt = f"{speed_str} - {current_mb:.1f}MB / {total_mb:.1f}MB, {eta_str}"
             self.after(0, lambda n=filename, p=progress_float, m=lock_stats_txt: self.bloqueio_manager.atualizar_status(n, p, m))
+            
         return progress_callback
 
     def update_metrics_ui(self, progress_float):
@@ -1162,48 +1179,85 @@ class TelegramCloudApp(ctk.CTk):
         texto_lbl = f"{len(filepaths)} arquivo(s) selecionado(s) para Upload" if len(filepaths) > 1 else f"1 arquivo selecionado para Upload"
         self.lbl_file.configure(text=texto_lbl, text_color=self.cores_destaque[self.combo_cor.get()]["fg"])
         if self.async_loop: asyncio.run_coroutine_threadsafe(self.perform_multiple_uploads(filepaths), self.async_loop)
-
+    
     async def perform_multiple_uploads(self, filepaths):
         pasta_backend = self.map_ui_to_backend.get(self.combo_pasta_up.get())
         if not pasta_backend: return
 
         self.flag_cancelar = False
         self.after(0, lambda: self.btn_select.configure(state="disabled"))
-        
         self.after(0, lambda: self.progresso_frame.pack(side="bottom", fill="x", padx=15, pady=(2, 2), before=self.terminal_wrapper))
         self.after(0, lambda: self.btn_cancelar.configure(state="normal", text="❌ CANCELAR"))
         
         self.is_downloading = True
         self.historico_arquivos.clear()
-        self.total_arquivos_sessao = len(filepaths)
         self.after(0, lambda: self.bloqueio_manager.sincronizar_painel_topo())
         
         cor_tema = self.cores_destaque[self.combo_cor.get()]["fg"]
         self.mudar_status("⬆️ Realizando Uploads...", cor_tema, "#FFFFFF")
         
+        loop = asyncio.get_running_loop()
+        limite_tamanho = 1990000000 # ~1.9 GB
+
         try:
             for idx, filepath in enumerate(filepaths, 1):
                 if self.flag_cancelar: break
-                filename = os.path.basename(filepath)
-                self.historico_arquivos.append(filename)
                 
-                self.after(0, lambda f=filename, i=idx: self.lbl_action_status.configure(text=f"Enviando ({i}/{len(filepaths)}): {f}"))
-                self.log(f"[UPLOAD] [{idx}/{len(filepaths)}] Enviando '{filename}'")
-                self.after(0, lambda n=filename: self.bloqueio_manager.adicionar_arquivo_painel(n, concluido=False))
-                self.after(0, lambda: self.bloqueio_manager.definir_mensagem_fixa(f"Enviando: {filename}"))
+                tamanho_arquivo = os.path.getsize(filepath)
+                arquivos_para_enviar = []
                 
-                try:
-                    await self.client.send_file(
-                        'me', filepath, caption=f"{pasta_backend} \nEnviado via Fiuza Cloud", 
-                        progress_callback=self.get_progress_callback("Upload", filename)
-                    )
-                    self.after(0, lambda n=filename: self.bloqueio_manager.adicionar_arquivo_painel(n, concluido=True))
-                    self.log(f"[UPLOAD] [{idx}/{len(filepaths)}] Sucesso!")
-                except Exception as e:
-                    if "CANCELADO_PELO_USUARIO" in str(e):
-                        self.log(f"[SISTEMA] Upload de '{filename}' interrompido pelo usuário.")
-                        break 
-                    else: raise e 
+                # SE FOR GIGANTE, CORTA EM PEDAÇOS (Lógica mantida)
+                if tamanho_arquivo > limite_tamanho:
+                    self.log(f"[SISTEMA] Arquivo excede 2GB. Dividindo em partes: {os.path.basename(filepath)}")
+                    self.mudar_status("✂️ Dividindo arquivo gigante...", "#ffc107", "#000000")
+                    
+                    partes = await loop.run_in_executor(None, split_file, filepath)
+                    arquivos_para_enviar.extend(partes)
+                    self.mudar_status("⬆️ Realizando Uploads...", cor_tema, "#FFFFFF")
+                else:
+                    arquivos_para_enviar.append(filepath)
+
+                self.total_arquivos_sessao = len(arquivos_para_enviar)
+
+                for p_idx, arquivo_atual in enumerate(arquivos_para_enviar, 1):
+                    if self.flag_cancelar: break
+                    
+                    filename = os.path.basename(arquivo_atual)
+                    self.historico_arquivos.append(filename)
+                    
+                    lbl_txt = f"Enviando ({p_idx}/{len(arquivos_para_enviar)}): {filename}" if len(arquivos_para_enviar) > 1 else f"Enviando ({idx}/{len(filepaths)}): {filename}"
+                    self.after(0, lambda t=lbl_txt: self.lbl_action_status.configure(text=t))
+                    self.log(f"[UPLOAD] Enviando '{filename}'")
+                    self.after(0, lambda n=filename: self.bloqueio_manager.adicionar_arquivo_painel(n, concluido=False))
+                    self.after(0, lambda t=lbl_txt: self.bloqueio_manager.definir_mensagem_fixa(t))
+                    
+                    try:
+                        # ===== MODO NATIVO COM CRYPTG =====
+                        await self.client.send_file(
+                            'me', arquivo_atual, caption=f"{pasta_backend} \nEnviado via Fiuza Cloud", 
+                            progress_callback=self.get_progress_callback("Upload", filename)
+                        )
+                        # ==================================
+                        
+                        self.after(0, lambda n=filename: self.bloqueio_manager.adicionar_arquivo_painel(n, concluido=True))
+                        self.log(f"[UPLOAD] Sucesso: {filename}")
+                        
+                        # Limpa o pedaço temporário gerado para economizar HD
+                        if arquivo_atual != filepath and ".part" in arquivo_atual:
+                            os.remove(arquivo_atual)
+                            
+                    except Exception as e:
+                        if "CANCELADO_PELO_USUARIO" in str(e):
+                            self.log(f"[SISTEMA] Upload de '{filename}' interrompido.")
+                            
+                            # Limpeza de cancelamento: Varre e apaga todas as partes (.part) geradas localmente
+                            for arq_temp in arquivos_para_enviar:
+                                if arq_temp != filepath and ".part" in arq_temp and os.path.exists(arq_temp):
+                                    try: os.remove(arq_temp)
+                                    except: pass
+                                    
+                            break 
+                        else: raise e 
                         
             if self.flag_cancelar: self.mudar_status("❌ Operação Cancelada!", "#dc3545", "#FFFFFF")
             else: self.mudar_status("✅ Uploads concluídos com sucesso!", cor_tema, "#FFFFFF")
@@ -1211,6 +1265,7 @@ class TelegramCloudApp(ctk.CTk):
             self.after(0, lambda: self.bloqueio_manager.finalizar_painel_topo())
             self.after(0, lambda: self.bloqueio_manager.definir_mensagem_fixa("Operação finalizada! 🚀", esconder_barra=True))
             await self.fetch_cloud_files()
+            
         except Exception as e:
             self.log(f"[ERRO] Falha no upload: {str(e)}")
             self.mudar_status("❌ Erro no upload", "#dc3545", "#FFFFFF")
@@ -1231,6 +1286,7 @@ class TelegramCloudApp(ctk.CTk):
         if hasattr(self, 'btn_refresh') and self.btn_refresh.winfo_exists():
             self.after(0, lambda: self.btn_refresh.configure(state="disabled"))
         try:
+            import re # <--- Importante para extrair o texto de partes
             temp_pastas = {pasta: [] for pasta in self.pastas_locais}
             houve_alteracao = False
             total_size_bytes = 0
@@ -1238,7 +1294,9 @@ class TelegramCloudApp(ctk.CTk):
             async for msg in self.client.iter_messages('me', limit=500):
                 if msg.file:
                     total_size_bytes += msg.file.size
-                    nome = msg.file.name or f"arquivo_{msg.id}{msg.file.ext}"
+                    nome_bruto = msg.file.name or f"arquivo_{msg.id}{msg.file.ext}"
+                    size_file = getattr(msg.file, 'size', 0) if msg.file else 0
+                    
                     pasta_detectada = "#Geral"
                     if msg.text and '#' in msg.text:
                         tags = [t for t in msg.text.split() if t.startswith('#')]
@@ -1249,9 +1307,31 @@ class TelegramCloudApp(ctk.CTk):
                         if pasta_detectada not in self.pastas_locais: 
                             self.pastas_locais.append(pasta_detectada)
                             houve_alteracao = True
-                    
-                    size_file = getattr(msg.file, 'size', 0) if msg.file else 0
-                    temp_pastas[pasta_detectada].append({"nome": nome, "msg": msg, "size": size_file})
+
+                    # LÓGICA DE AGRUPAMENTO (O segredo da interface limpa)
+                    match = re.search(r'(.+)\.part(\d+)$', nome_bruto)
+                    if match:
+                        base_name = match.group(1) # Extrai "Windows11.iso" de "Windows11.iso.part1"
+                        is_part = True
+                    else:
+                        base_name = nome_bruto
+                        is_part = False
+
+                    # Procura se esse arquivo já existe na lista da pasta
+                    arquivo_existente = next((a for a in temp_pastas[pasta_detectada] if a["nome"] == base_name), None)
+
+                    if arquivo_existente:
+                        # Se existe, apenas soma o tamanho e guarda a mensagem na lista oculta
+                        arquivo_existente["size"] += size_file
+                        arquivo_existente["msgs"].append(msg)
+                    else:
+                        # Se não existe, cria a estrutura mestre (agora suportando MÚLTIPLAS mensagens)
+                        temp_pastas[pasta_detectada].append({
+                            "nome": base_name, 
+                            "msgs": [msg], 
+                            "size": size_file,
+                            "is_split": is_part
+                        })
 
             for pasta in temp_pastas:
                 ordem_salva = self.ordem_arquivos.get(pasta, [])
@@ -1265,14 +1345,12 @@ class TelegramCloudApp(ctk.CTk):
             self.uso_total_bytes = total_size_bytes
             self.after(0, self.atualizar_textos_armazenamento)
             
-            if houve_alteracao or True:
-                self.salvar_configuracoes()
-            
+            self.salvar_configuracoes()
             self.after(0, self.atualizar_dropdowns)
+            
             cor_tema = self.cores_destaque[self.combo_cor.get()]["fg"]
             self.mudar_status("✅ Nuvem sincronizada", cor_tema, "#FFFFFF")
             
-            from gerenciador import GerenciadorNuvem
             if hasattr(self, 'gerenciador_manager') and hasattr(self.gerenciador_manager, 'popup_mgr') and self.gerenciador_manager.popup_mgr.winfo_exists():
                 self.after(0, self.gerenciador_manager.atualizar_listas_gerenciador)
         except Exception as e:
@@ -1449,7 +1527,6 @@ class TelegramCloudApp(ctk.CTk):
     async def perform_multiple_downloads(self, arquivos_objs, save_dir):
         self.flag_cancelar = False
         self.after(0, lambda: self.btn_download.configure(state="disabled"))
-        
         self.after(0, lambda: self.progresso_frame.pack(side="bottom", fill="x", padx=15, pady=(2, 2), before=self.terminal_wrapper))
         self.after(0, lambda: self.btn_cancelar.configure(state="normal", text="❌ CANCELAR"))
         
@@ -1460,30 +1537,71 @@ class TelegramCloudApp(ctk.CTk):
         
         cor_tema = self.cores_destaque[self.combo_cor.get()]["fg"]
         self.mudar_status("⬇️ Realizando Downloads...", cor_tema, "#FFFFFF")
+        loop = asyncio.get_running_loop()
         
         try:
             for idx, arq in enumerate(arquivos_objs, 1):
                 if self.flag_cancelar: break
-                filename = arq["nome"]
-                msg_obj = arq["msg"]
-                self.historico_arquivos.append(filename)
-                save_path = os.path.join(save_dir, filename)
+                base_filename = arq["nome"]
+                mensagens_do_arquivo = arq["msgs"] # <-- Lista com 1 ou mais IDs de arquivos do telegram
                 
-                self.after(0, lambda f=filename, i=idx: self.lbl_action_status.configure(text=f"Baixando ({i}/{len(arquivos_objs)}): {f}"))
-                self.log(f"[DOWNLOAD] [{idx}/{len(arquivos_objs)}] Baixando: '{filename}'")
-                self.after(0, lambda n=filename: self.bloqueio_manager.adicionar_arquivo_painel(n, concluido=False))
-                self.after(0, lambda: self.bloqueio_manager.definir_mensagem_fixa(f"Baixando: {filename}"))
+                self.historico_arquivos.append(base_filename)
                 
+                self.after(0, lambda f=base_filename, i=idx: self.lbl_action_status.configure(text=f"Baixando ({i}/{len(arquivos_objs)}): {f}"))
+                self.log(f"[DOWNLOAD] [{idx}/{len(arquivos_objs)}] Preparando: '{base_filename}' ({len(mensagens_do_arquivo)} pacote(s))")
+                self.after(0, lambda n=base_filename: self.bloqueio_manager.adicionar_arquivo_painel(n, concluido=False))
+                
+                partes_baixadas = []
                 try:
-                    await self.client.download_media(
-                        msg_obj, file=save_path, progress_callback=self.get_progress_callback("Download", filename)
-                    )
-                    self.after(0, lambda n=filename: self.bloqueio_manager.adicionar_arquivo_painel(n, concluido=True))
-                    self.log(f"[DOWNLOAD] [{idx}/{len(arquivos_objs)}] Concluído: {save_path}")
+                    # Loop interno para baixar as partes ou o arquivo único
+                    for sub_msg in mensagens_do_arquivo:
+                        if self.flag_cancelar: break
+                        nome_real_msg = sub_msg.file.name or f"arquivo_{sub_msg.id}{sub_msg.file.ext}"
+                        save_path = os.path.join(save_dir, nome_real_msg)
+                        
+                        self.after(0, lambda: self.bloqueio_manager.definir_mensagem_fixa(f"Baixando: {nome_real_msg}"))
+                        
+                        await self.client.download_media(
+                            sub_msg, file=save_path, progress_callback=self.get_progress_callback("Download", base_filename)
+                        )
+                        partes_baixadas.append(save_path)
+                        
+                    # Se for um arquivo fracionado, faz o merge logo em seguida
+                    if arq.get("is_split", False) and not self.flag_cancelar:
+                        self.mudar_status("🔄 Remontando pacotes...", cor_tema, "#FFFFFF")
+                        final_path = os.path.join(save_dir, base_filename)
+                        
+                        await loop.run_in_executor(None, merge_files, partes_baixadas, final_path)
+                        
+                        # Limpeza: Deleta as partes temporárias da máquina do usuário
+                        for p in partes_baixadas:
+                            try: os.remove(p)
+                            except: pass
+                            
+                    self.after(0, lambda n=base_filename: self.bloqueio_manager.adicionar_arquivo_painel(n, concluido=True))
+                    self.log(f"[DOWNLOAD] [{idx}/{len(arquivos_objs)}] Concluído: {base_filename}")
+                    
                 except Exception as e:
                     if "CANCELADO_PELO_USUARIO" in str(e):
-                        self.log(f"[SISTEMA] Download de '{filename}' interrompido pelo usuário.")
-                        if os.path.exists(save_path): os.remove(save_path)
+                        self.log(f"[SISTEMA] Download de '{base_filename}' interrompido pelo usuário.")
+                        
+                        # 1. Limpa o arquivo que estava sendo baixado no momento exato do cancelamento
+                        if 'save_path' in locals() and os.path.exists(save_path):
+                            try: os.remove(save_path)
+                            except: pass
+                            
+                        # 2. Limpa as partes anteriores que já tinham sido concluídas
+                        for p in partes_baixadas:
+                            if os.path.exists(p):
+                                try: os.remove(p)
+                                except: pass
+                                
+                        # 3. Limpa o arquivo principal caso ele tenha sido interrompido
+                        caminho_final_incompleto = os.path.join(save_dir, base_filename)
+                        if os.path.exists(caminho_final_incompleto):
+                            try: os.remove(caminho_final_incompleto)
+                            except: pass
+                            
                         break 
                     else: raise e
 

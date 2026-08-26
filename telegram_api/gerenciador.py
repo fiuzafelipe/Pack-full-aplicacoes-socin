@@ -180,7 +180,7 @@ class GerenciadorNuvem:
                 if self.pasta_atual_mgr in self.app.ordem_arquivos and origem_data['nome'] in self.app.ordem_arquivos[self.pasta_atual_mgr]:
                     self.app.ordem_arquivos[self.pasta_atual_mgr].remove(origem_data['nome'])
                     self.app.salvar_configuracoes()
-                asyncio.run_coroutine_threadsafe(self.processar_movimentacao(origem_data["msg"], destino_backend), self.app.async_loop)
+                asyncio.run_coroutine_threadsafe(self.processar_movimentacao(origem_data["msgs"], destino_backend), self.app.async_loop)
 
         btn_conf = ctk.CTkButton(modal, text="Confirmar Transferência", command=on_confirmar, fg_color=paleta["fg"], hover_color=paleta["hover"], corner_radius=8, height=35)
         btn_conf.pack(pady=10)
@@ -340,7 +340,7 @@ class GerenciadorNuvem:
             if self.pasta_atual_mgr in self.app.ordem_arquivos and self.drag_data['nome'] in self.app.ordem_arquivos[self.pasta_atual_mgr]:
                 self.app.ordem_arquivos[self.pasta_atual_mgr].remove(self.drag_data['nome'])
                 self.app.salvar_configuracoes()
-            asyncio.run_coroutine_threadsafe(self.processar_movimentacao(self.drag_data["msg"], pasta_destino), self.app.async_loop)
+            asyncio.run_coroutine_threadsafe(self.processar_movimentacao(self.drag_data["msgs"], pasta_destino), self.app.async_loop)
             self.drag_data = None
             return
 
@@ -373,20 +373,24 @@ class GerenciadorNuvem:
 
         self.drag_data = None
 
-    async def processar_movimentacao(self, msg_obj, nova_pasta):
+    async def processar_movimentacao(self, msgs_list, nova_pasta):
         try:
             # CORREÇÃO: Limpando a string FORA da f-string para não dar erro no Python 3.8
             nome_pasta_limpo = self.app.map_backend_to_ui.get(nova_pasta, nova_pasta).replace('    ↳ 📁 ', '').replace('📁 ', '').replace('\u200b', '')
             self.app.log(f"[SISTEMA] Movendo arquivo para '{nome_pasta_limpo}'...")
             
             novo_caption = f"{nova_pasta} \nEnviado via Fiuza Cloud"
-            try:
-                await self.app.client.edit_message('me', msg_obj.id, text=novo_caption)
-            except Exception as ex:
-                if "Content of the message was not modified" in str(ex):
-                    pass
-                else:
-                    raise ex
+            
+            # Edita a legenda de TODAS as partes do arquivo para movê-lo de pasta
+            for m in msgs_list:
+                try:
+                    await self.app.client.edit_message('me', m.id, text=novo_caption)
+                except Exception as ex:
+                    if "Content of the message was not modified" in str(ex):
+                        pass
+                    else:
+                        raise ex
+                        
             await self.app.fetch_cloud_files()
             if self.popup_mgr and self.popup_mgr.winfo_exists():
                 self.popup_mgr.after(0, self.atualizar_listas_gerenciador)
@@ -453,8 +457,10 @@ class GerenciadorNuvem:
             
             if chave_antiga in self.app.pastas_nuvem:
                 for arq in self.app.pastas_nuvem[chave_antiga]:
-                    if 'msg' in arq and hasattr(arq['msg'], 'id'):
-                        arquivos_para_atualizar.append((arq['msg'].id, pasta_nova))
+                    if 'msgs' in arq:
+                        for m in arq['msgs']:
+                            if hasattr(m, 'id'):
+                                arquivos_para_atualizar.append((m.id, pasta_nova))
             
             prefixo_antigo = pasta_antiga + "__"
             prefixo_novo = pasta_nova + "__"
@@ -466,8 +472,10 @@ class GerenciadorNuvem:
                     subpastas_afetadas.append((p, p_nova))
                     if p in self.app.pastas_nuvem:
                         for arq in self.app.pastas_nuvem[p]:
-                            if 'msg' in arq and hasattr(arq['msg'], 'id'):
-                                arquivos_para_atualizar.append((arq['msg'].id, p_nova))
+                            if 'msgs' in arq:
+                                for m in arq['msgs']:
+                                    if hasattr(m, 'id'):
+                                        arquivos_para_atualizar.append((m.id, p_nova))
 
             for msg_id, nova_tag in arquivos_para_atualizar:
                 novo_caption = f"{nova_tag} \nEnviado via Fiuza Cloud"
@@ -539,7 +547,14 @@ class GerenciadorNuvem:
     async def processar_delecao_pasta(self, pasta):
         try:
             arquivos = self.app.pastas_nuvem.get(pasta, [])
-            ids_para_apagar = [arq['msg'].id for arq in arquivos]
+            ids_para_apagar = []
+            
+            # Varre todos os arquivos e pega o ID de TODAS as partes vinculadas a eles
+            for arq in arquivos:
+                if 'msgs' in arq:
+                    for msg in arq['msgs']:
+                        ids_para_apagar.append(msg.id)
+                        
             if ids_para_apagar:
                 await self.app.client.delete_messages('me', ids_para_apagar)
                 
@@ -560,11 +575,15 @@ class GerenciadorNuvem:
 
     def acao_apagar_arquivo_direto(self, arq_obj):
         if messagebox.askyesno("Excluir", f"Deseja apagar '{arq_obj['nome']}' permanentemente da nuvem?", parent=self.popup_mgr):
-            asyncio.run_coroutine_threadsafe(self.processar_delecao_arquivo(arq_obj['msg']), self.app.async_loop)
+            # Passa a LISTA de mensagens (que contém todas as partes) para o processador
+            asyncio.run_coroutine_threadsafe(self.processar_delecao_arquivo(arq_obj['msgs']), self.app.async_loop)
 
-    async def processar_delecao_arquivo(self, msg_obj):
+    async def processar_delecao_arquivo(self, msgs_list):
         try:
-            await self.app.client.delete_messages('me', [msg_obj.id])
+            # Extrai o ID de todas as partes do arquivo e deleta em lote
+            ids_para_apagar = [m.id for m in msgs_list]
+            await self.app.client.delete_messages('me', ids_para_apagar)
+            
             await self.app.fetch_cloud_files()
             if self.popup_mgr and self.popup_mgr.winfo_exists():
                 self.popup_mgr.after(0, self.atualizar_listas_gerenciador)
